@@ -91,7 +91,7 @@ export default function IntroducaoPage() {
 
           <div className="relative w-full flex flex-col gap-4">
             {/* Slide Container */}
-            <div className="relative aspect-video w-full max-h-[75vh] bg-zinc-900 rounded-2xl md:rounded-[32px] border border-zinc-800 shrink-0 overflow-hidden shadow-2xl flex flex-col">
+            <div className="relative aspect-video w-full max-h-[75vh] rounded-2xl md:rounded-[32px] border border-zinc-800 shrink-0 overflow-hidden shadow-2xl flex flex-col">
               
               <AnimatePresence mode="wait">
                 <motion.div
@@ -100,9 +100,9 @@ export default function IntroducaoPage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
-                  className={`w-full h-full bg-black flex items-center justify-center p-0 relative ${slide.bgClass || ''}`}
+                  className={`w-full h-full flex items-center justify-center p-0 relative ${slide.bgClass || 'bg-black'}`}
                 >
-                  <div className="relative w-full h-full flex items-center justify-center bg-zinc-800">
+                  <div className="relative w-full h-full flex items-center justify-center">
                     <Image 
                       src={slide.image} 
                       alt={slide.title} 

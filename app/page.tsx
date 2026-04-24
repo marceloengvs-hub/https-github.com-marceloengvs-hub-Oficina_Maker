@@ -442,13 +442,13 @@ function StepCard({ href, number, icon, title, desc, borderColor, hoverColor, cl
   return (
     <div className={`relative block bg-[#000000] p-6 sm:p-8 rounded-3xl border ${borderColor} ${hoverColor} transition-all duration-300 group overflow-hidden ${className}`}>
       {bgImage && (
-        <div className="absolute inset-0 z-0 opacity-20 group-hover:opacity-30 transition-opacity duration-300">
+        <div className="absolute inset-0 z-0 opacity-15 group-hover:opacity-25 transition-opacity duration-300">
           <Image src={bgImage} alt={title} fill unoptimized className="object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent" />
+          <div className="absolute inset-0 bg-black/60" />
         </div>
       )}
       <Link href={href} className="absolute inset-0 z-10"></Link>
-      <div className="absolute right-4 sm:right-6 top-4 sm:top-6 text-7xl sm:text-8xl font-black text-zinc-800/50 pointer-events-none group-hover:text-zinc-700/50 transition-colors z-20">
+      <div className="absolute right-4 sm:right-6 top-4 sm:top-6 text-7xl sm:text-8xl font-black text-white/[0.2] pointer-events-none group-hover:text-white/[0.3] transition-colors z-0">
         {number}
       </div>
       <div className="w-12 h-12 sm:w-16 sm:h-16 bg-zinc-950/80 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-4 sm:mb-6 group-hover:scale-110 transition-transform relative z-20 border border-zinc-800/50 pointer-events-none">
