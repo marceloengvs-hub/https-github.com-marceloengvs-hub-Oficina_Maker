@@ -21,15 +21,43 @@ export default function ConversorPage() {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [ImageTracer, setImageTracer] = useState<any>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [dxfUrl, setDxfUrl] = useState<string | null>(null);
 
   // Limiar de preto e branco (0 a 255)
   const [threshold, setThreshold] = useState(128);
   const [brightness, setBrightness] = useState(0); // -100 to 100
   const [contrast, setContrast] = useState(0); // -100 to 100
+  const [gamma, setGamma] = useState(1.0); // 0.1 to 3.0
+  const [processingMode, setProcessingMode] = useState<'logo' | 'photo'>('logo');
   const [blur, setBlur] = useState(0); // 0 to 10
   const [invert, setInvert] = useState(false);
   const [flipHorizontal, setFlipHorizontal] = useState(false);
   const [cutlineMargin, setCutlineMargin] = useState(20);
+  const [selectedMaterial, setSelectedMaterial] = useState<string>('mdf3');
+
+  const MATERIAL_PRESETS: Record<string, any> = {
+    mdf3: {
+      name: 'MDF 3mm',
+      engrave: { speed: 350, powerMin: 12, powerMax: 15, mode: 'Scan' },
+      cut: { speed: 15, powerMin: 60, powerMax: 65, mode: 'Cut' }
+    },
+    acrilico3: {
+      name: 'Acrílico 3mm',
+      engrave: { speed: 400, powerMin: 10, powerMax: 12, mode: 'Scan' },
+      cut: { speed: 12, powerMin: 70, powerMax: 75, mode: 'Cut' }
+    },
+    acrilico4: {
+      name: 'Acrílico 4mm',
+      engrave: { speed: 400, powerMin: 12, powerMax: 15, mode: 'Scan' },
+      cut: { speed: 8, powerMin: 80, powerMax: 85, mode: 'Cut' }
+    },
+    papel: {
+      name: 'Papel / Papelão',
+      engrave: { speed: 500, powerMin: 8, powerMax: 10, mode: 'Scan' },
+      cut: { speed: 40, powerMin: 15, powerMax: 20, mode: 'Cut' }
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -92,12 +120,53 @@ export default function ConversorPage() {
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
 
-      // Aplica o Threshold e a Inversão
+      // 1. Aplicar Gamma Correction e converter para Grayscale (0-255)
+      // Criamos um array temporário para armazenar os valores de cinza para o dithering
+      const grayscale = new Float32Array(width * height);
+      
       for (let i = 0; i < data.length; i += 4) {
-        // Luminância (fórmula comum para converter para tons de cinza percebido)
-        const luminance = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        // Normaliza 0-1
+        let r = data[i] / 255;
+        let g = data[i+1] / 255;
+        let b = data[i+2] / 255;
         
-        let isBlack = luminance < threshold;
+        // Aplica Gamma
+        r = Math.pow(r, 1 / gamma);
+        g = Math.pow(g, 1 / gamma);
+        b = Math.pow(b, 1 / gamma);
+        
+        // Luminância percebida
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) * 255;
+        grayscale[i / 4] = luminance;
+      }
+
+      // 2. Aplicar Processamento (Threshold ou Dithering)
+      if (processingMode === 'photo') {
+        // Floyd-Steinberg Dithering
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            const oldPixel = grayscale[idx];
+            const newPixel = oldPixel < threshold ? 0 : 255;
+            grayscale[idx] = newPixel;
+            
+            const error = oldPixel - newPixel;
+            
+            // Distribuir erro para vizinhos
+            if (x + 1 < width) grayscale[idx + 1] += error * 7 / 16;
+            if (y + 1 < height) {
+              if (x > 0) grayscale[idx + width - 1] += error * 3 / 16;
+              grayscale[idx + width] += error * 5 / 16;
+              if (x + 1 < width) grayscale[idx + width + 1] += error * 1 / 16;
+            }
+          }
+        }
+      }
+
+      // 3. Atualizar ImageData final
+      for (let i = 0; i < data.length; i += 4) {
+        const idx = i / 4;
+        let isBlack = grayscale[idx] < (processingMode === 'photo' ? 128 : threshold);
         
         if (invert) {
           isBlack = !isBlack;
@@ -108,7 +177,7 @@ export default function ConversorPage() {
         data[i] = color;     // Red
         data[i + 1] = color; // Green
         data[i + 2] = color; // Blue
-        data[i + 3] = 255;   // Força opacidade máxima
+        data[i + 3] = 255;   // Opacidade Total
       }
 
       ctx.putImageData(imageData, 0, 0);
@@ -118,7 +187,7 @@ export default function ConversorPage() {
       setPathHistory([]);
     };
     img.src = imageSrc;
-  }, [imageSrc, threshold, brightness, contrast, blur, invert, flipHorizontal]);
+  }, [imageSrc, threshold, brightness, contrast, blur, invert, flipHorizontal, gamma, processingMode]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,15 +216,15 @@ export default function ConversorPage() {
     setTimeout(() => {
       try {
         const options = {
-          colorsampling: 0, // Desativado para usar a paleta forçada (evita variação de RGB e garante preto puro/branco puro)
+          colorsampling: 0,
           numberofcolors: 2,
-          pathomit: 8, // Omitir pathes pequenos / ruídos menores que 8px
+          pathomit: processingMode === 'photo' ? 0 : 8, // No modo foto, não omitimos detalhes pequenos
           layering: 0,
           scale: 1,
           roundcoords: 1,
           viewbox: false,
           desc: false,
-          pal: [{ r: 0, g: 0, b: 0, a: 255 }, { r: 255, g: 255, b: 255, a: 255 }] // Força preto e branco estritos
+          pal: [{ r: 0, g: 0, b: 0, a: 255 }, { r: 255, g: 255, b: 255, a: 255 }]
         };
 
         // Usamos a imagem P&B já processada como input para suavização do vetor
@@ -163,10 +232,6 @@ export default function ConversorPage() {
           bwImageSrc,
           (svgString: string) => {
             try {
-              // Em vez de usar Regex pesado ou deixar as tags da biblioteca sujas passarem,
-              // vamos desconstruir o objeto gerado e montar um código XML manualmente.
-              // O RDWorks é MUITO rígido e qualquer variável de <g>, descrições da Engine (ImageTracer),
-              // opacidades(alpha), ou rgb(0,0,0) fazem ele abortar o upload dando "No Data!".
               const parser = new DOMParser();
               const doc = parser.parseFromString(svgString, "image/svg+xml");
               const svgEl = doc.querySelector('svg');
@@ -182,7 +247,9 @@ export default function ConversorPage() {
                 h = h.replace('px', '');
                 
                 const viewBox = svgEl.getAttribute('viewBox') || `0 0 ${w} ${h}`;
-                setSvgViewport({ w, h, viewBox });
+                const rw = Math.round(parseFloat(w) || 800);
+                const rh = Math.round(parseFloat(h) || 800);
+                setSvgViewport({ w: rw.toString(), h: rh.toString(), viewBox: `0 0 ${rw} ${rh}` });
                 
                 // 2. Coletar EXCLUSIVAMENTE os Shapes
                 const paths = doc.querySelectorAll('path');
@@ -190,13 +257,12 @@ export default function ConversorPage() {
                 
                 paths.forEach(p => {
                   const fill = (p.getAttribute('fill') || '').toLowerCase().replace(/\s/g, '');
-                  // Ignora tudo que for branco ou tendendo ao branco claríssimo
-                  if (fill === 'rgb(255,255,255)' || fill === '#ffffff' || fill === 'white') {
-                    return; 
-                  }
+                  
+                  // Critério Estrito: Só aceitamos o que for preto (ou o contorno de corte que tratamos depois)
+                  const isBlack = fill === 'rgb(0,0,0)' || fill === '#000000' || fill === '#000' || fill === 'black';
                   
                   const d = p.getAttribute('d');
-                  if (d && d.length > 5) { // Ignora falhas de parse de pequenos traços quebrados
+                  if (d && d.length > 5 && isBlack) {
                     pList.push({ d, layer: 'engrave' });
                   }
                 });
@@ -309,6 +375,96 @@ export default function ConversorPage() {
     }
   };
 
+  // Função Simplificada de Download
+  const executeDownload = (content: string, filename: string, type: string) => {
+    // Para SVGs, garantimos a codificação correta para o Chrome não se perder
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Aumentei o tempo de espera para 2 segundos. O Chrome às vezes é mais lento 
+    // que o Edge para iniciar a transferência do Blob.
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 2000);
+  };
+
+  const handleDownloadSVG = () => {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svgDoc = document.createElementNS(svgNS, "svg");
+    
+    svgDoc.setAttribute("width", svgViewport.w);
+    svgDoc.setAttribute("height", svgViewport.h);
+    svgDoc.setAttribute("viewBox", svgViewport.viewBox);
+    svgDoc.setAttribute("version", "1.1");
+    
+    const gEngrave = document.createElementNS(svgNS, "g");
+    gEngrave.setAttribute("id", "Layer_Engrave");
+    gEngrave.setAttribute("style", "fill:#000000;stroke:none;");
+
+    const gCut = document.createElementNS(svgNS, "g");
+    gCut.setAttribute("id", "Layer_Cut");
+    gCut.setAttribute("style", "fill:none;stroke:#FF0000;stroke-width:1;");
+
+    parsedPaths.forEach((pathObj) => {
+      const pathEl = document.createElementNS(svgNS, "path");
+      pathEl.setAttribute("d", pathObj.d);
+      
+      if (pathObj.layer === 'cut') {
+        gCut.appendChild(pathEl);
+      } else {
+        gEngrave.appendChild(pathEl);
+      }
+    });
+
+    if (gEngrave.childNodes.length > 0) svgDoc.appendChild(gEngrave);
+    if (gCut.childNodes.length > 0) svgDoc.appendChild(gCut);
+
+    let finalSvgString = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n`;
+    finalSvgString += new XMLSerializer().serializeToString(svgDoc);
+
+    // Mudamos para o MIME type correto de SVG. O Chrome prefere isso ao invés de octet-stream.
+    executeDownload(finalSvgString, 'oficina_maker_laser.svg', 'image/svg+xml;charset=utf-8');
+  };
+
+  const handleDownloadDXF = () => {
+    // Versão simplificada do DXF para RDWorks
+    let dxf = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1006\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
+    const scale = 10;
+    
+    parsedPaths.forEach(pathObj => {
+      const colorCode = pathObj.layer === 'cut' ? "1" : "7";
+      
+      // Quebra o caminho principal em subcaminhos a cada comando 'M' (MoveTo)
+      // Isso evita que o DXF desenhe "linhas fantasmas" cruzando a tela entre objetos separados
+      const subpaths = pathObj.d.split(/[Mm]/);
+      
+      subpaths.forEach(sub => {
+        if (!sub.trim()) return;
+        const points = sub.match(/(-?\d+\.?\d*)/g);
+        if (points && points.length >= 4) {
+          for (let i = 0; i < points.length - 3; i += 2) {
+            const x1 = Math.round(parseFloat(points[i]) * scale);
+            const y1 = Math.round((parseFloat(svgViewport.h) - parseFloat(points[i+1])) * scale);
+            const x2 = Math.round(parseFloat(points[i+2]) * scale);
+            const y2 = Math.round((parseFloat(svgViewport.h) - parseFloat(points[i+3])) * scale);
+            
+            dxf += "0\nLINE\n8\n0\n62\n" + colorCode + "\n";
+            dxf += "10\n" + x1 + "\n20\n" + y1 + "\n";
+            dxf += "11\n" + x2 + "\n21\n" + y2 + "\n";
+          }
+        }
+      });
+    });
+    dxf += "0\nENDSEC\n0\nEOF\n";
+    executeDownload(dxf, 'oficina_maker_laser.dxf', 'application/dxf');
+  };
+
   const handleUndo = () => {
     if (pathHistory.length > 0) {
       const previousState = pathHistory[pathHistory.length - 1];
@@ -317,34 +473,16 @@ export default function ConversorPage() {
     }
   };
 
+  // A função downloadSVG agora é redundante, mas vamos mantê-la como fallback se necessário
   const downloadSVG = () => {
-    if (parsedPaths.length === 0) return;
-    
-    // Constrói o SVG Oficial e Limpo a cada download
-    let cleanSvg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\r\n`;
-    cleanSvg += `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${svgViewport.w}" height="${svgViewport.h}" viewBox="${svgViewport.viewBox}">\r\n`;
-    cleanSvg += `<g id="ImportedPaths">\r\n`;
-
-    parsedPaths.forEach(pathObj => {
-      if (pathObj.layer === 'cut') {
-         // O RDWorks enviará cores diferentes para Layers diferentes na direita
-         cleanSvg += `  <path d="${pathObj.d}" fill="none" stroke="#FF0000" stroke-width="1" />\r\n`;
-      } else {
-         cleanSvg += `  <path d="${pathObj.d}" fill="#000000" stroke="#000000" stroke-width="1" />\r\n`;
-      }
-    });
-    
-    cleanSvg += `</g>\r\n</svg>`;
-    
-    const blob = new Blob([cleanSvg], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'gravaçao_rdworks.svg';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (downloadUrl) {
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = 'oficina_maker.svg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (
@@ -359,8 +497,8 @@ export default function ConversorPage() {
             <RefreshCw className="w-8 h-8 text-[#FFFF00]" />
           </div>
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold">Conversor para RDWorks</h1>
-            <p className="text-zinc-400 mt-2">Converta fotos complexas perfeitamente para arquivos SVG</p>
+            <h1 className="text-4xl md:text-5xl font-bold text-[#FFFF00]">CONVERSOR V2</h1>
+            <p className="text-zinc-400 mt-2">Pronto para RDWorks e Corte a Laser</p>
           </div>
         </div>
 
@@ -402,11 +540,27 @@ export default function ConversorPage() {
                   <p className="text-sm text-zinc-400 mb-4 tracking-tight">
                     Ajuste os controles abaixo até que as linhas e as formas sólidas fiquem totalmente definidas em preto, removendo os borrões ou sujeiras.
                   </p>
+
+                  {/* Modo de Processamento */}
+                  <div className="grid grid-cols-2 gap-3 p-1 bg-zinc-900 rounded-xl border border-zinc-800 mb-6">
+                    <button 
+                      onClick={() => setProcessingMode('logo')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${processingMode === 'logo' ? 'bg-[#FFFF00] text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      Modo Logotipo
+                    </button>
+                    <button 
+                      onClick={() => setProcessingMode('photo')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${processingMode === 'photo' ? 'bg-[#FFFF00] text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      Modo Foto (Pontilhado)
+                    </button>
+                  </div>
                   
                   {/* Limiar (Threshold) */}
                   <div className="pt-2">
                     <label className="text-sm font-medium text-zinc-300 mb-2 flex justify-between">
-                      <span>Limiar (Preto e Branco):</span>
+                      <span>{processingMode === 'photo' ? 'Sensibilidade de Detalhe:' : 'Limiar (Preto e Branco):'}</span>
                       <span className="font-mono text-[#FFFF00]">{threshold}</span>
                     </label>
                     <input 
@@ -438,6 +592,19 @@ export default function ConversorPage() {
                     <input 
                       type="range" min="-100" max="100" 
                       value={contrast} onChange={(e) => setContrast(parseInt(e.target.value))}
+                      className="w-full accent-[#FFFF00]"
+                    />
+                  </div>
+
+                  {/* Gamma */}
+                  <div>
+                    <label className="text-sm font-medium text-zinc-300 mb-2 flex justify-between" title="Ajusta os tons médios. Útil para clarear sombras sem perder o preto.">
+                      <span>Correção de Gama:</span>
+                      <span className="font-mono text-[#FFFF00]">{gamma.toFixed(1)}</span>
+                    </label>
+                    <input 
+                      type="range" min="0.1" max="3.0" step="0.1"
+                      value={gamma} onChange={(e) => setGamma(parseFloat(e.target.value))}
                       className="w-full accent-[#FFFF00]"
                     />
                   </div>
@@ -633,13 +800,102 @@ export default function ConversorPage() {
                   </svg>
                 </div>
                 
-                <button 
-                  onClick={downloadSVG}
-                  className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 border border-zinc-700 hover:border-zinc-500"
-                >
-                  <Download className="w-5 h-5" />
-                  Salvar Vetor (Download)
-                </button>
+                {parsedPaths.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      onClick={handleDownloadSVG}
+                      className="w-full py-4 bg-[#FFFF00] hover:bg-[#e6e600] text-black font-extrabold rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-[#FFFF00]/20 active:scale-95"
+                    >
+                      <Download className="w-6 h-6" />
+                      BAIXAR EM SVG (.SVG)
+                    </button>
+                    
+                    <button 
+                      onClick={handleDownloadDXF}
+                      className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-3 border border-zinc-700"
+                    >
+                      <Settings2 className="w-6 h-6 text-[#FFFF00]" />
+                      BAIXAR EM DXF (RECOMENDADO)
+                    </button>
+                  </div>
+                )}
+
+                {/* Painel de Sugestões RDWorks */}
+                <div className="mt-8 pt-6 border-t border-zinc-800">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+                      <Settings2 className="w-5 h-5 text-[#FFFF00]" />
+                      Sugestão de Parâmetros (RDWorks)
+                    </h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-2 block">Selecione o Material:</label>
+                      <select 
+                        value={selectedMaterial}
+                        onChange={(e) => setSelectedMaterial(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-xl px-4 py-2.5 outline-none focus:border-[#FFFF00] transition-colors cursor-pointer"
+                      >
+                        {Object.entries(MATERIAL_PRESETS).map(([key, value]) => (
+                          <option key={key} value={key}>{value.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Gravação */}
+                      <div className="bg-zinc-900/50 rounded-2xl p-4 border border-zinc-800">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-3 h-3 rounded-full bg-black border border-zinc-600"></div>
+                          <span className="text-sm font-bold text-zinc-200">Gravação (Preto)</span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-zinc-500">Modo:</span>
+                            <span className="text-[#FFFF00] font-mono">{MATERIAL_PRESETS[selectedMaterial].engrave.mode}</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-zinc-500">Velocidade:</span>
+                            <span className="text-zinc-200 font-mono">{MATERIAL_PRESETS[selectedMaterial].engrave.speed} mm/s</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-zinc-500">Potência:</span>
+                            <span className="text-zinc-200 font-mono">{MATERIAL_PRESETS[selectedMaterial].engrave.powerMin}% - {MATERIAL_PRESETS[selectedMaterial].engrave.powerMax}%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Corte */}
+                      <div className="bg-zinc-900/50 rounded-2xl p-4 border border-zinc-800">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-3 h-3 rounded-full bg-red-600"></div>
+                          <span className="text-sm font-bold text-zinc-200">Corte (Vermelho)</span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-zinc-500">Modo:</span>
+                            <span className="text-red-400 font-mono">{MATERIAL_PRESETS[selectedMaterial].cut.mode}</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-zinc-500">Velocidade:</span>
+                            <span className="text-zinc-200 font-mono">{MATERIAL_PRESETS[selectedMaterial].cut.speed} mm/s</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-zinc-500">Potência:</span>
+                            <span className="text-zinc-200 font-mono">{MATERIAL_PRESETS[selectedMaterial].cut.powerMin}% - {MATERIAL_PRESETS[selectedMaterial].cut.powerMax}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#FFFF00]/5 border border-[#FFFF00]/20 rounded-xl p-3">
+                      <p className="text-[10px] text-[#FFFF00]/80 leading-relaxed italic">
+                        * Dica: No RDWorks, coloque a camada de gravação (preta) ACIMA da camada de corte (vermelha) para que a máquina grave antes de soltar a peça do material.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
