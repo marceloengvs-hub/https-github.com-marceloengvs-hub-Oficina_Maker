@@ -83,15 +83,15 @@ export default function IntroducaoPage() {
         {/* Background Decorative Blur */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#0000FF]/10 blur-[120px] rounded-full pointer-events-none" />
 
-        <div className="w-full max-w-5xl z-10 flex flex-col gap-6">
-          <div className="text-center md:text-left mb-2">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Introdução e Teoria</h1>
-            <p className="text-zinc-400 text-lg mt-2">Fundamentos do IPE lab e da nossa oficina</p>
+        <div className="w-full max-w-[95%] 2xl:max-w-[1600px] z-10 flex flex-col gap-4">
+          <div className="text-center md:text-left mb-0">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Introdução e Teoria</h1>
+            <p className="text-zinc-400 text-base mt-1">Fundamentos do IPE lab e da nossa oficina</p>
           </div>
 
           <div className="relative w-full flex flex-col gap-4">
             {/* Slide Container */}
-            <div className="relative aspect-video w-full bg-zinc-900 rounded-2xl md:rounded-[32px] border border-zinc-800 shrink-0 overflow-hidden shadow-2xl flex flex-col">
+            <div className="relative aspect-video w-full max-h-[75vh] bg-zinc-900 rounded-2xl md:rounded-[32px] border border-zinc-800 shrink-0 overflow-hidden shadow-2xl flex flex-col">
               
               <AnimatePresence mode="wait">
                 <motion.div
@@ -115,26 +115,26 @@ export default function IntroducaoPage() {
               </AnimatePresence>
             </div>
 
-            {/* Slide Navigation - Moved below the slide container */}
-            <div className="flex items-center justify-center gap-6 bg-zinc-900/50 backdrop-blur-md px-6 py-3 rounded-full border border-zinc-800 text-white self-center mt-2 w-fit">
+            {/* Slide Navigation - Moved back below but with height constraint on slide */}
+            <div className="flex items-center justify-center gap-6 bg-zinc-900/80 backdrop-blur-md px-5 py-2 rounded-full border border-zinc-800 text-white self-center z-10">
               <button 
                 onClick={prevSlide}
                 disabled={currentSlide === 0}
-                className="p-2 bg-white/10 hover:bg-white/20 hover:text-[#FFFF00] rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-1.5 bg-white/5 hover:bg-white/15 hover:text-[#FFFF00] rounded-full transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
               
-              <span className="font-mono font-medium text-sm w-16 text-center tabular-nums text-zinc-300">
+              <span className="font-mono font-medium text-xs w-12 text-center tabular-nums text-zinc-400">
                 {currentSlide + 1} / {SLIDES.length}
               </span>
               
               <button 
                 onClick={nextSlide}
                 disabled={currentSlide === SLIDES.length - 1}
-                className="p-2 bg-white/10 hover:bg-white/20 hover:text-[#FFFF00] rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="p-1.5 bg-white/5 hover:bg-white/15 hover:text-[#FFFF00] rounded-full transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
               >
-                <ChevronRight className="w-6 h-6" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
