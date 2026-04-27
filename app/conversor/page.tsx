@@ -32,9 +32,17 @@ export default function ConversorPage() {
   const [processingMode, setProcessingMode] = useState<'logo' | 'photo'>('logo');
   const [blur, setBlur] = useState(0); // 0 to 10
   const [invert, setInvert] = useState(false);
+  const [minPathLength, setMinPathLength] = useState(50); // Filtro de ruído: remove paths com d.length < N
   const [flipHorizontal, setFlipHorizontal] = useState(false);
   const [cutlineMargin, setCutlineMargin] = useState(20);
   const [selectedMaterial, setSelectedMaterial] = useState<string>('mdf3');
+
+  // States físicos para Luminária LED
+  const [isLedLampMode, setIsLedLampMode] = useState(false);
+  const [maxSizeMM, setMaxSizeMM] = useState(100);
+  const [baseWidthMM, setBaseWidthMM] = useState(54);
+  const [offsetMarginMM, setOffsetMarginMM] = useState(3);
+  const [realScale, setRealScale] = useState<number | null>(null); // mm per pixel
 
   const MATERIAL_PRESETS: Record<string, any> = {
     mdf3: {
@@ -251,7 +259,7 @@ export default function ConversorPage() {
                 const rh = Math.round(parseFloat(h) || 800);
                 setSvgViewport({ w: rw.toString(), h: rh.toString(), viewBox: `0 0 ${rw} ${rh}` });
                 
-                // 2. Coletar EXCLUSIVAMENTE os Shapes
+                // 2. Coletar EXCLUSIVAMENTE os Shapes — filtrando ruído por comprimento mínimo do path
                 const paths = doc.querySelectorAll('path');
                 const pList: VisualPath[] = [];
                 
@@ -262,7 +270,8 @@ export default function ConversorPage() {
                   const isBlack = fill === 'rgb(0,0,0)' || fill === '#000000' || fill === '#000' || fill === 'black';
                   
                   const d = p.getAttribute('d');
-                  if (d && d.length > 5 && isBlack) {
+                  // Filtra paths com menos pontos que o limiar definido pelo usuário
+                  if (d && d.length >= minPathLength && isBlack) {
                     pList.push({ d, layer: 'engrave' });
                   }
                 });
@@ -331,6 +340,166 @@ export default function ConversorPage() {
     
     // Adiciona o novo path de corte no início do array
     setParsedPaths([{ d, layer: 'cut' }, ...withoutOldCuts]);
+    setIsLedLampMode(false);
+  };
+
+  const addLampCutline = () => {
+    if (!bwImageSrc || !ImageTracer) return;
+    
+    setIsProcessing(true);
+    setPathHistory(prev => [...prev, parsedPaths]);
+
+    // Canvas oculto para processar a silhueta da imagem P&B
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      const w = parseFloat(svgViewport.w) || img.width;
+      const h = parseFloat(svgViewport.h) || img.height;
+      canvas.width = w;
+      canvas.height = h;
+      
+      // Escala: px -> mm
+      const maxDim = Math.max(w, h);
+      const mmPerPx = maxSizeMM / maxDim;
+      setRealScale(mmPerPx);
+      
+      const marginPx = Math.max(2, offsetMarginMM / mmPerPx);
+      const baseWidthPx = baseWidthMM / mmPerPx;
+      const baseHeightPx = 15 / mmPerPx;
+      
+      // ── PASSO 1: Criar silhueta sólida via blur grande ────────────────
+      // Blur de 12px: funde TODAS as linhas do desenho numa mancha única.
+      // Elementos finos/isolados (linhas soltas) não acumulam escuridão suficiente
+      // e são filtrados automaticamente pelo threshold rígido.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.filter = 'blur(12px)';
+      ctx.drawImage(img, 0, 0, w, h);
+      ctx.filter = 'none';
+
+      // Threshold rígido: só fica preto onde MUITAS linhas se sobrepuseram (núcleo)
+      let fillData = ctx.getImageData(0, 0, w, h);
+      let fpx = fillData.data;
+      for (let i = 0; i < fpx.length; i += 4) {
+        const v = fpx[i] < 60 ? 0 : 255;
+        fpx[i] = v; fpx[i+1] = v; fpx[i+2] = v; fpx[i+3] = 255;
+      }
+      ctx.putImageData(fillData, 0, 0);
+
+      // ── PASSO 2: Scanline horizontal (1 passagem) ─────────────────────
+      // Fecha qualquer buraco interno (janelas, rodas) que ainda sobrou
+      fillData = ctx.getImageData(0, 0, w, h);
+      fpx = fillData.data;
+      for (let y = 0; y < h; y++) {
+        let left = -1, right = -1;
+        for (let x = 0; x < w; x++) {
+          if (fpx[(y * w + x) * 4] === 0) { left = x; break; }
+        }
+        for (let x = w - 1; x >= 0; x--) {
+          if (fpx[(y * w + x) * 4] === 0) { right = x; break; }
+        }
+        if (left >= 0 && right > left) {
+          for (let x = left; x <= right; x++) {
+            const id = (y * w + x) * 4;
+            fpx[id] = 0; fpx[id+1] = 0; fpx[id+2] = 0; fpx[id+3] = 255;
+          }
+        }
+      }
+      ctx.putImageData(fillData, 0, 0);
+
+      // ── PASSO 3: Expandir a silhueta pela margem configurada ─────────
+      const solidData = ctx.getImageData(0, 0, w, h);
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = w;
+      offCanvas.height = h;
+      const offCtx = offCanvas.getContext('2d')!;
+      offCtx.putImageData(solidData, 0, 0);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.filter = `blur(${marginPx}px)`;
+      ctx.drawImage(offCanvas, 0, 0);
+      ctx.filter = 'none';
+
+      const expData = ctx.getImageData(0, 0, w, h);
+      const exp = expData.data;
+      let minX = w, maxX = 0, maxY = 0;
+
+      for (let i = 0; i < exp.length; i += 4) {
+        if (exp[i] < 200) {
+          exp[i] = 0; exp[i+1] = 0; exp[i+2] = 0;
+          const epx = (i / 4) % w;
+          const epy = Math.floor((i / 4) / w);
+          if (epx < minX) minX = epx;
+          if (epx > maxX) maxX = epx;
+          if (epy > maxY) maxY = epy;
+        } else {
+          exp[i] = 255; exp[i+1] = 255; exp[i+2] = 255;
+        }
+      }
+      ctx.putImageData(expData, 0, 0);
+
+      // ── PASSO 4: Aba de encaixe LED na base do desenho ───────────────
+      const centerX = (minX + maxX) / 2;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(centerX - (baseWidthPx / 2), maxY - 2, baseWidthPx, baseHeightPx + 2);
+
+      // ── PASSO 5: Vectorizar silhueta → contorno de corte ─────────────
+      const silhouetteDataUrl = canvas.toDataURL('image/png');
+      const options = {
+        colorsampling: 0,
+        numberofcolors: 2,
+        pathomit: 2, // baixo para curvas suaves sem ruído
+        layering: 0,
+        scale: 1,
+        roundcoords: 1,
+        viewbox: false,
+        desc: false,
+        pal: [{ r: 0, g: 0, b: 0, a: 255 }, { r: 255, g: 255, b: 255, a: 255 }]
+      };
+
+      ImageTracer.imageToSVG(
+        silhouetteDataUrl,
+        (svgString: string) => {
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(svgString, "image/svg+xml");
+            const paths = doc.querySelectorAll('path');
+            
+            let maxLen = 0;
+            let bestPath = '';
+            
+            // Pega o path preto com maior comprimento de data → contorno externo
+            paths.forEach(p => {
+              const fill = (p.getAttribute('fill') || '').toLowerCase().replace(/\s/g, '');
+              const isBlack = fill === 'rgb(0,0,0)' || fill === '#000000' || fill === '#000' || fill === 'black';
+              if (isBlack) {
+                const d = p.getAttribute('d') || '';
+                if (d.length > maxLen) {
+                  maxLen = d.length;
+                  bestPath = d;
+                }
+              }
+            });
+            
+            if (bestPath) {
+              const withoutOldCuts = parsedPaths.filter(p => p.layer !== 'cut');
+              setParsedPaths([{ d: bestPath, layer: 'cut' }, ...withoutOldCuts]);
+              setIsLedLampMode(true);
+            }
+          } catch(e) {
+            console.error(e);
+          }
+          setIsProcessing(false);
+        },
+        options
+      );
+    };
+    img.src = bwImageSrc;
   };
 
   const removeCutline = () => {
@@ -398,8 +567,12 @@ export default function ConversorPage() {
     const svgNS = "http://www.w3.org/2000/svg";
     const svgDoc = document.createElementNS(svgNS, "svg");
     
-    svgDoc.setAttribute("width", svgViewport.w);
-    svgDoc.setAttribute("height", svgViewport.h);
+    // Se estiver no modo Luminária, seta as dimensões reais em mm para os softwares lerem corretamente
+    const widthStr = isLedLampMode && realScale ? (parseFloat(svgViewport.w) * realScale).toFixed(2) + "mm" : svgViewport.w;
+    const heightStr = isLedLampMode && realScale ? (parseFloat(svgViewport.h) * realScale).toFixed(2) + "mm" : svgViewport.h;
+    
+    svgDoc.setAttribute("width", widthStr);
+    svgDoc.setAttribute("height", heightStr);
     svgDoc.setAttribute("viewBox", svgViewport.viewBox);
     svgDoc.setAttribute("version", "1.1");
     
@@ -435,7 +608,9 @@ export default function ConversorPage() {
   const handleDownloadDXF = () => {
     // Versão simplificada do DXF para RDWorks
     let dxf = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1006\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n";
-    const scale = 10;
+    
+    // Por padrão o scale era 10 (misterioso). No modo Luminária, garantimos 1 unidade = 1 milímetro.
+    const scale = isLedLampMode && realScale ? realScale : 10;
     
     parsedPaths.forEach(pathObj => {
       const colorCode = pathObj.layer === 'cut' ? "1" : "7";
@@ -449,10 +624,11 @@ export default function ConversorPage() {
         const points = sub.match(/(-?\d+\.?\d*)/g);
         if (points && points.length >= 4) {
           for (let i = 0; i < points.length - 3; i += 2) {
-            const x1 = Math.round(parseFloat(points[i]) * scale);
-            const y1 = Math.round((parseFloat(svgViewport.h) - parseFloat(points[i+1])) * scale);
-            const x2 = Math.round(parseFloat(points[i+2]) * scale);
-            const y2 = Math.round((parseFloat(svgViewport.h) - parseFloat(points[i+3])) * scale);
+            // Arredonda para 3 casas decimais para precisão milimétrica sem inchar o arquivo
+            const x1 = (parseFloat(points[i]) * scale).toFixed(3);
+            const y1 = ((parseFloat(svgViewport.h) - parseFloat(points[i+1])) * scale).toFixed(3);
+            const x2 = (parseFloat(points[i+2]) * scale).toFixed(3);
+            const y2 = ((parseFloat(svgViewport.h) - parseFloat(points[i+3])) * scale).toFixed(3);
             
             dxf += "0\nLINE\n8\n0\n62\n" + colorCode + "\n";
             dxf += "10\n" + x1 + "\n20\n" + y1 + "\n";
@@ -622,6 +798,25 @@ export default function ConversorPage() {
                     />
                   </div>
 
+                  {/* Filtro de Linhas Pequenas */}
+                  <div className="pt-1">
+                    <label className="text-sm font-medium text-zinc-300 mb-1 flex justify-between" title="Aumentar este valor remove linhas pequenas/internas do desenho. Ideal para eliminar detalhes 3D que não devem aparecer no laser.">
+                      <span>🧹 Filtro de Linhas Pequenas:</span>
+                      <span className="font-mono text-[#FFFF00]">{minPathLength}</span>
+                    </label>
+                    <input 
+                      type="range" min="5" max="800" step="5"
+                      value={minPathLength} onChange={(e) => setMinPathLength(parseInt(e.target.value))}
+                      className="w-full accent-[#FFFF00]"
+                    />
+                    <p className="text-xs text-zinc-500 mt-1">
+                      {minPathLength <= 20 ? '🔴 Mínimo — todos os paths incluídos' :
+                       minPathLength <= 100 ? '🟡 Baixo — linhas muito pequenas removidas' :
+                       minPathLength <= 300 ? '🟠 Médio — linhas internas/detalhes removidos' :
+                       '🟢 Alto — apenas contornos principais mantidos'}
+                    </p>
+                  </div>
+
                   <label className="flex items-center gap-3 cursor-pointer pt-3 pb-2">
                     <input 
                       type="checkbox" 
@@ -741,6 +936,13 @@ export default function ConversorPage() {
                      >
                        <Circle className="w-4 h-4" /> Elipse
                      </button>
+                     <button
+                       onClick={addLampCutline}
+                       className="flex items-center gap-1.5 text-xs font-bold px-2 py-1.5 rounded-lg bg-[#00FFFF]/10 text-cyan-400 hover:bg-[#00FFFF]/20 border border-[#00FFFF]/30 transition-colors"
+                       title="Contorno exato com aba para base LED"
+                     >
+                       <span className="w-4 h-4 flex items-center justify-center border-2 border-current rounded-sm border-b-0 pb-1">💡</span> Base LED
+                     </button>
                      {parsedPaths.some(p => p.layer === 'cut') && (
                        <button
                          onClick={removeCutline}
@@ -752,15 +954,55 @@ export default function ConversorPage() {
                      )}
                   </div>
                   
-                  <div className="flex items-center gap-4 bg-zinc-900 px-3 py-2 rounded-lg border border-zinc-800">
-                    <span className="text-xs text-zinc-400 font-medium whitespace-nowrap">Distância do Corte (Pixel):</span>
-                    <input 
-                      type="range" min="0" max="100" step="1"
-                      value={cutlineMargin} 
-                      onChange={(e) => setCutlineMargin(parseInt(e.target.value))}
-                      className="w-full h-1 accent-red-500 bg-zinc-700 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <span className="text-xs text-red-400 font-mono w-8 text-right">{cutlineMargin}</span>
+                  <div className="flex flex-col gap-4 bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-zinc-400 font-medium whitespace-nowrap min-w-[140px]">Margem de Corte:</span>
+                      <input 
+                        type="range" min="0" max="100" step="1"
+                        value={cutlineMargin} 
+                        onChange={(e) => setCutlineMargin(parseInt(e.target.value))}
+                        className="w-full h-1 accent-red-500 bg-zinc-700 rounded-lg appearance-none cursor-pointer"
+                        disabled={isLedLampMode}
+                      />
+                      <span className="text-xs text-red-400 font-mono w-8 text-right">{cutlineMargin}px</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-zinc-800">
+                      <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider mb-3">Opções para Luminária 3D (Em Milímetros)</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-zinc-500">Tam. Máx. do Acrílico:</label>
+                          <div className="flex items-center bg-zinc-800 rounded px-2 py-1">
+                            <input 
+                              type="number" value={maxSizeMM} onChange={(e) => setMaxSizeMM(Number(e.target.value))}
+                              className="w-full bg-transparent text-sm text-zinc-200 outline-none font-mono"
+                            />
+                            <span className="text-xs text-zinc-500 ml-1">mm</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-zinc-500">Largura da Base LED:</label>
+                          <div className="flex items-center bg-zinc-800 rounded px-2 py-1">
+                            <input 
+                              type="number" value={baseWidthMM} onChange={(e) => setBaseWidthMM(Number(e.target.value))}
+                              className="w-full bg-transparent text-sm text-zinc-200 outline-none font-mono"
+                            />
+                            <span className="text-xs text-zinc-500 ml-1">mm</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-zinc-500">Offset (Margem):</label>
+                          <div className="flex items-center bg-zinc-800 rounded px-2 py-1">
+                            <input 
+                              type="number" value={offsetMarginMM} onChange={(e) => setOffsetMarginMM(Number(e.target.value))}
+                              className="w-full bg-transparent text-sm text-zinc-200 outline-none font-mono"
+                              step="0.5"
+                            />
+                            <span className="text-xs text-zinc-500 ml-1">mm</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 

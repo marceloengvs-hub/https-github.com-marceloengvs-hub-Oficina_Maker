@@ -23,26 +23,6 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  // Simulator State
-  const [mdfWidth, setMdfWidth] = useState<number | string>("");
-  const [mdfHeight, setMdfHeight] = useState<number | string>("");
-  const [mdfPriceM2, setMdfPriceM2] = useState<number | string>(95); // Pré-definido
-  
-  const [acrilicoWidth, setAcrilicoWidth] = useState<number | string>("");
-  const [acrilicoHeight, setAcrilicoHeight] = useState<number | string>("");
-  const [led, setLed] = useState<number | string>("");
-  const [chip, setChip] = useState<number | string>("");
-  const [cabo, setCabo] = useState<number | string>("");
-  const [others, setOthers] = useState<number | string>(""); // Cola branca, etc
-  const [hours, setHours] = useState<number | string>("");
-  const [hourlyRate, setHourlyRate] = useState<number | string>("");
-  
-  const [machineTime, setMachineTime] = useState<number | string>("");
-  const [machineRatePerMin, setMachineRatePerMin] = useState<number | string>(2.5); // Pré-definido
-
-  const [gravacaoTime, setGravacaoTime] = useState<number | string>("");
-  const [gravacaoRatePerMin, setGravacaoRatePerMin] = useState<number | string>(2.5); // Pré-definido
-
   // QR Code State
   const [showQR, setShowQR] = useState(false);
   const [currentUrl, setCurrentUrl] = useState("");
@@ -60,47 +40,7 @@ export default function Home() {
     }
   };
 
-  // Calculations
-  const mdfAreaM2 = ((Number(mdfWidth) || 0) / 100) * ((Number(mdfHeight) || 0) / 100);
-  const mdfCost = mdfAreaM2 * (Number(mdfPriceM2) || 0);
 
-  // Acrilico Calculations
-  const acrilicoPieces = [
-    { area: 2.0, price: 410.0 },     // 2m x 1m
-    { area: 1.0, price: 205.0 },     // 1m x 1m
-    { area: 0.5, price: 122.5 },     // 1m x 0.5m
-    { area: 0.25, price: 62.0 },     // 0.5m x 0.5m
-    { area: 0.125, price: 38.0 },    // 0.5m x 0.25m
-    { area: 0.0625, price: 24.0 },   // 0.25m x 0.25m
-    { area: 0.03125, price: 15.0 },  // 0.25m x 0.125m
-  ];
-
-  const acrilicoReqAreaM2 = ((Number(acrilicoWidth) || 0) / 100) * ((Number(acrilicoHeight) || 0) / 100);
-
-  let closestAcrilico = acrilicoPieces[0];
-  let minDiff = Math.abs(acrilicoReqAreaM2 - acrilicoPieces[0].area);
-  
-  acrilicoPieces.forEach(piece => {
-    const diff = Math.abs(acrilicoReqAreaM2 - piece.area);
-    if (diff < minDiff) {
-      minDiff = diff;
-      closestAcrilico = piece;
-    }
-  });
-
-  const acrilicoPricePerM2 = closestAcrilico.price / closestAcrilico.area;
-  const acrilicoCost = acrilicoReqAreaM2 * acrilicoPricePerM2;
-  
-  const machineCost = (Number(machineTime) || 0) * (Number(machineRatePerMin) || 0);
-  const gravacaoCost = (Number(gravacaoTime) || 0) * (Number(gravacaoRatePerMin) || 0);
-
-  const materialCost = mdfCost + acrilicoCost + (Number(led) || 0) + (Number(chip) || 0) + (Number(cabo) || 0) + (Number(others) || 0);
-  const laborCost = (Number(hours) || 0) * (Number(hourlyRate) || 0);
-  const totalCost = materialCost + laborCost + machineCost + gravacaoCost;
-
-  const scrollToSimulator = () => {
-    document.getElementById("simulador")?.scrollIntoView({ behavior: "smooth" });
-  };
 
   return (
     <div className="min-h-screen bg-[#000000] text-zinc-50 selection:bg-[#F58220]/30 font-sans">
@@ -129,13 +69,13 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto px-4 sm:px-0">
-            <button
-              onClick={scrollToSimulator}
+            <Link
+              href="/simulador"
               className="w-full sm:w-auto px-8 py-4 bg-[#F58220] hover:bg-[#d9701a] text-black font-bold rounded-full transition-colors flex items-center justify-center gap-2"
             >
               <Calculator className="w-5 h-5" />
               Simular Custos
-            </button>
+            </Link>
             <a
               href="#inspiracao"
               className="w-full sm:w-auto px-8 py-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-50 font-medium rounded-full transition-colors border border-zinc-800 flex items-center justify-center gap-2"
@@ -220,6 +160,16 @@ export default function Home() {
               borderColor="border-[#F58220]/30"
               hoverColor="hover:border-[#F58220]"
             />
+            <StepCard
+              className="min-w-[85vw] sm:min-w-[300px] snap-center md:min-w-0"
+              href="/simulador"
+              number="06"
+              icon={<Calculator className="w-8 h-8 text-[#00FF00]" />}
+              title="Simulador de Custos"
+              desc="Calcule o custo exato da sua luminária baseando-se nos materiais, tempo de máquina e mão de obra utilizada."
+              borderColor="border-[#00FF00]/30"
+              hoverColor="hover:border-[#00FF00]"
+            />
           </div>
         </div>
       </section>
@@ -246,136 +196,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Simulator Section */}
-      <section id="simulador" className="py-24 bg-zinc-950 px-6 border-t border-zinc-900">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Simulador de Custos</h2>
-            <p className="text-zinc-400 max-w-2xl mx-auto">
-              Calcule o custo exato da sua luminária baseando-se nos materiais utilizados na oficina.
-            </p>
-          </div>
 
-          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 lg:gap-12">
-            {/* Inputs */}
-            <div className="lg:col-span-7 space-y-6 sm:space-y-8 bg-[#000000] p-6 sm:p-8 rounded-3xl border border-zinc-800 shadow-xl">
-              <div>
-                <h3 className="text-lg sm:text-xl font-bold text-zinc-50 mb-4 sm:mb-6 flex items-center gap-2 border-b border-zinc-800 pb-3 sm:pb-4">
-                  <Layers className="w-5 h-5 text-[#F58220]" /> Custos de Material
-                </h3>
-
-                {/* MDF Box Calculation */}
-                <div className="bg-zinc-900/40 p-4 sm:p-5 rounded-2xl border border-zinc-800/80 mb-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                    <h4 className="text-sm font-bold text-zinc-300">Chapa de MDF (3mm)</h4>
-                    <span className="text-[#F58220] font-mono font-bold text-sm bg-[#F58220]/10 px-3 py-1 rounded-full w-fit">
-                      Custo: R$ {mdfCost.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    <InputField label="Largura (cm)" value={mdfWidth} onChange={setMdfWidth} prefix="" />
-                    <InputField label="Altura (cm)" value={mdfHeight} onChange={setMdfHeight} prefix="" />
-                    <InputField label="Preço (m²)" value={mdfPriceM2} onChange={setMdfPriceM2} />
-                  </div>
-                </div>
-
-                {/* Acrilico Box Calculation */}
-                <div className="bg-zinc-900/40 p-4 sm:p-5 rounded-2xl border border-zinc-800/80 mb-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-4">
-                    <div>
-                      <h4 className="text-sm font-bold text-zinc-300">Chapa de Acrílico (4mm)</h4>
-                      <p className="text-xs text-zinc-500 mt-1">Cálculo proporcional à chapa padrão com área mais próxima.</p>
-                      <p className="text-xs text-zinc-500">
-                        Referência usada: {closestAcrilico.area.toFixed(4)} m² (R$ {closestAcrilico.price.toFixed(2)})
-                      </p>
-                    </div>
-                    <span className="text-[#F58220] font-mono font-bold text-sm bg-[#F58220]/10 px-3 py-1 rounded-full w-fit mt-2 sm:mt-0">
-                      Custo: R$ {acrilicoCost.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <InputField label="Largura (cm)" value={acrilicoWidth} onChange={setAcrilicoWidth} prefix="" />
-                    <InputField label="Altura (cm)" value={acrilicoHeight} onChange={setAcrilicoHeight} prefix="" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 sm:gap-6">
-                  <InputField label="Barra de LED RGB 5V" value={led} onChange={setLed} />
-                  <InputField label="Chip Atmega328P" value={chip} onChange={setChip} />
-                  <InputField label="Cabo USB c/ Interruptor" value={cabo} onChange={setCabo} />
-                  <InputField label="Outros (Cola)" value={others} onChange={setOthers} />
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg sm:text-xl font-bold text-zinc-50 mb-4 sm:mb-6 flex items-center gap-2 border-b border-zinc-800 pb-3 sm:pb-4">
-                  <Clock className="w-5 h-5 text-[#F58220]" /> Mão de Obra e Máquina
-                </h3>
-                <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-                  <InputField label="Tempo de Produção" value={hours} onChange={setHours} prefix="h" />
-                  <InputField label="Valor da sua Hora" value={hourlyRate} onChange={setHourlyRate} />
-                </div>
-                
-                <div className="bg-zinc-900/40 p-4 sm:p-5 rounded-2xl border border-zinc-800/80 mb-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                    <h4 className="text-sm font-bold text-zinc-300">Tempo de Máquina (Corte)</h4>
-                    <span className="text-[#F58220] font-mono font-bold text-sm bg-[#F58220]/10 px-3 py-1 rounded-full w-fit">
-                      Custo: R$ {machineCost.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <InputField label="Tempo de Uso" value={machineTime} onChange={setMachineTime} prefix="min" />
-                    <InputField label="Valor por Minuto" value={machineRatePerMin} onChange={setMachineRatePerMin} />
-                  </div>
-                </div>
-
-                <div className="bg-zinc-900/40 p-4 sm:p-5 rounded-2xl border border-zinc-800/80">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                    <h4 className="text-sm font-bold text-zinc-300">Tempo de Máquina (Gravação no Acrílico)</h4>
-                    <span className="text-[#F58220] font-mono font-bold text-sm bg-[#F58220]/10 px-3 py-1 rounded-full w-fit">
-                      Custo: R$ {gravacaoCost.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <InputField label="Tempo de Uso" value={gravacaoTime} onChange={setGravacaoTime} prefix="min" />
-                    <InputField label="Valor por Minuto" value={gravacaoRatePerMin} onChange={setGravacaoRatePerMin} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Outputs */}
-            <div className="lg:col-span-5">
-              <div className="bg-[#000000] p-6 sm:p-8 rounded-3xl border border-zinc-800 shadow-xl sticky top-4 lg:top-8 z-10">
-                <h3 className="text-xl sm:text-2xl font-bold text-zinc-50 mb-6 sm:mb-8">Resumo Financeiro</h3>
-
-                <div className="space-y-4 sm:space-y-6">
-                  <div className="flex justify-between items-center pb-4 sm:pb-6 border-b border-zinc-800/50">
-                    <span className="text-sm sm:text-base text-zinc-400">Materiais</span>
-                    <span className="text-base sm:text-lg text-zinc-50 font-mono">R$ {materialCost.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-4 sm:pb-6 border-b border-zinc-800/50">
-                    <span className="text-sm sm:text-base text-zinc-400">Mão de Obra</span>
-                    <span className="text-base sm:text-lg text-zinc-50 font-mono">R$ {laborCost.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-4 sm:pb-6 border-b border-zinc-800/50">
-                    <span className="text-sm sm:text-base text-zinc-400">Máquina (Corte)</span>
-                    <span className="text-base sm:text-lg text-zinc-50 font-mono">R$ {machineCost.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-4 sm:pb-6 border-b border-zinc-800/50">
-                    <span className="text-sm sm:text-base text-zinc-400">Máquina (Gravação)</span>
-                    <span className="text-base sm:text-lg text-zinc-50 font-mono">R$ {gravacaoCost.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 sm:pt-0">
-                    <span className="text-base sm:text-lg text-zinc-400 font-medium">Custo Total</span>
-                    <span className="text-2xl sm:text-3xl text-[#F58220] font-mono font-bold">R$ {totalCost.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Footer */}
       <footer className="py-8 text-center text-zinc-500 text-sm border-t border-zinc-900 bg-[#000000] flex flex-col items-center gap-4">
