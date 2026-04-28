@@ -22,12 +22,12 @@ export default function InkscapePage() {
           <section className="bg-zinc-950 p-8 rounded-3xl border border-zinc-900">
             <h2 className="text-2xl font-bold text-zinc-50 mb-4">Passo a Passo</h2>
             <ul className="list-disc list-inside space-y-4">
-              <li><strong>Configuração do Documento:</strong> Ajustando o tamanho da página para as dimensões exatas da placa de acrílico (4mm).</li>
+              <li><strong>Ajustes de medidas:</strong> Ajustando o tamanho para as dimensões exatas da placa de acrílico (4mm).</li>
               <li><strong>Vetorização de Imagens:</strong> Como transformar uma imagem da internet (bitmap) em um vetor (caminhos) que a máquina a laser consegue ler.</li>
               <li><strong>Padrão de Cores para o Laser:</strong>
                 <ul className="list-disc list-inside ml-8 mt-2 space-y-2 text-zinc-400">
-                  <li><span className="text-red-400 font-bold">Vermelho:</span> Linhas de corte (onde o laser vai atravessar o material).</li>
-                  <li><span className="text-zinc-50 font-bold">Preto:</span> Áreas de gravação (onde o laser vai apenas &quot;desgastar&quot; o acrílico para o LED brilhar).</li>
+                  <li><span className="text-zinc-50 font-bold">Preto:</span> Linhas de corte (onde o laser vai atravessar o material).</li>
+                  <li><span className="text-[#FFFF00] font-bold">Colorido:</span> Áreas de gravação (onde o laser vai apenas &quot;desgastar&quot; o acrílico para o LED brilhar).</li>
                 </ul>
               </li>
               <li><strong>Exportação:</strong> Salvando o arquivo no formato correto (DXF ou SVG) para o software da máquina de corte.</li>
