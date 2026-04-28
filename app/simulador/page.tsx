@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Calculator, Layers, Clock, TrendingUp, Info } from 'lucide-react';
+import { ArrowLeft, Calculator, Layers, Clock, TrendingUp, Info, ExternalLink, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function SimuladorPage() {
@@ -21,6 +21,14 @@ export default function SimuladorPage() {
   const [machineRatePerMin, setMachineRatePerMin] = useState<number | string>(2.5);
   const [gravacaoTime, setGravacaoTime] = useState<number | string>("");
   const [gravacaoRatePerMin, setGravacaoRatePerMin] = useState<number | string>(2.5);
+  const [profitMargin, setProfitMargin] = useState<number | string>(30);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+
 
   const acrilicoPieces = [
     { area: 2.0, price: 410.0 }, { area: 1.0, price: 205.0 },
@@ -46,7 +54,9 @@ export default function SimuladorPage() {
   const materialCost = mdfCost + acrilicoCost + (Number(led) || 0) + (Number(chip) || 0) + (Number(cabo) || 0) + (Number(others) || 0);
   const laborCost = (Number(hours) || 0) * (Number(hourlyRate) || 0);
   const totalCost = materialCost + laborCost + machineCost + gravacaoCost;
+  const finalPrice = totalCost * (1 + (Number(profitMargin) || 0) / 100);
   const now = new Date();
+
 
   return (
     <div className="min-h-screen bg-black text-zinc-50 font-sans">
@@ -145,6 +155,8 @@ export default function SimuladorPage() {
                     <InputField label="Cabo USB" value={cabo} onChange={setCabo} />
                     <InputField label="Outros (Cola/Fita)" value={others} onChange={setOthers} />
                   </div>
+
+
                 </div>
               </section>
 
@@ -193,16 +205,26 @@ export default function SimuladorPage() {
                     <ResultRow label="Máquina (Gravação)" value={gravacaoCost} />
                   </div>
                   <div className="pt-8 border-t border-zinc-800">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="text-zinc-400 font-medium">Margem de Lucro (%)</span>
+                      <div className="relative w-24">
+                        <input type="number" value={profitMargin} onChange={(e) => setProfitMargin(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg py-2 px-3 text-white font-mono text-right focus:outline-none focus:border-[#F58220]" />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600 text-xs">%</span>
+                      </div>
+                    </div>
                     <div className="flex justify-between items-end mb-2">
-                      <span className="text-zinc-400 font-medium">Custo Total da Peça</span>
+                      <span className="text-zinc-400 font-medium">Preço de Venda Sugerido</span>
                       <span className="text-[#F58220] text-sm font-bold flex items-center gap-1">
-                        <TrendingUp className="w-4 h-4" /> +30% sugerido
+                        <TrendingUp className="w-4 h-4" /> Final
                       </span>
                     </div>
                     <div className="text-5xl font-black text-[#F58220] font-mono tracking-tighter">
-                      R$ {totalCost.toFixed(2)}
+                      R$ {finalPrice.toFixed(2)}
                     </div>
+                    <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">Custo de produção: R$ {totalCost.toFixed(2)}</p>
                   </div>
+
                   <button onClick={() => window.print()}
                     className="w-full py-5 bg-[#F58220] hover:bg-[#ff8c2e] text-black font-black rounded-2xl transition-all shadow-lg shadow-[#F58220]/20 text-lg uppercase tracking-wider">
                     Gerar PDF / Imprimir
@@ -212,12 +234,51 @@ export default function SimuladorPage() {
               <div className="mt-8 p-6 bg-[#F58220]/5 rounded-2xl border border-[#F58220]/10 flex gap-4 items-start">
                 <Info className="w-6 h-6 text-[#F58220] shrink-0 mt-1" />
                 <p className="text-sm text-zinc-400 leading-relaxed">
-                  Este simulador usa preços de referência do <strong>IPE lab</strong>. Considere também impostos e embalagens para o preço final.
+                  Este simulador usa preços de referência do <strong>IPE lab</strong>. Considere também impostos e embalagens para o preço final. 
+                  <span className="block mt-2 text-[#F58220] font-bold">Este sistema foi desenvolvido para fins unicamente educacionais.</span>
                 </p>
+
               </div>
             </div>
           </div>
+
+          {/* ── ALTERNATIVA SIMPLIFICADA ── */}
+          <div className="mt-12 p-8 bg-cyan-500/10 rounded-[32px] border border-cyan-500/20 max-w-4xl mx-auto">
+            <div className="flex items-center gap-3 mb-4 text-cyan-400">
+              <Zap className="w-6 h-6" />
+              <span className="font-black uppercase tracking-widest text-sm">Dica: Alternativa de Baixa Dificuldade</span>
+            </div>
+            <p className="text-zinc-300 text-base mb-8 leading-relaxed">
+              Não quer programar o chip? Você pode substituir o sistema tradicional por estas opções de <strong>montagem simplificada</strong>. 
+              Esta solução dispensa a programação, exigindo apenas uma soldagem básica dos fios para conexão!
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <a href="https://pt.aliexpress.com/item/1005006498402209.html?spm=a2g0o.detail.pcDetailTopMoreOtherSeller.1.4fee5Dpt5DptMw&gps-id=pcDetailTopMoreOtherSeller&scm=1007.40050.354490.0&scm_id=1007.40050.354490.0&scm-url=1007.40050.354490.0&pvid=83a9fd45-b0cc-49d9-9f90-97a18261e3db&_t=gps-id%3ApcDetailTopMoreOtherSeller%2Cscm-url%3A1007.40050.354490.0%2Cpvid%3A83a9fd45-b0cc-49d9-9f90-97a18261e3db%2Ctpp_buckets%3A668%232846%238107%231934&pdp_ext_f=%7B%22order%22%3A%221130%22%2C%22eval%22%3A%221%22%2C%22sceneId%22%3A%2230050%22%2C%22fromPage%22%3A%22recommend%22%7D&pdp_npi=6%40dis%21BRL%213.72%213.56%21%21%210.69%210.66%21%402103212517773846670334931ef850%2112000037422676730%21rec%21BR%21%21ABX%211%210%21n_tag%3A-29910%3Bd%3Aaa4beed5%3Bm03_new_user%3A-29895&utparam-url=scene%3ApcDetailTopMoreOtherSeller%7Cquery_from%3A%7Cx_object_id%3A1005006498402209%7C_p_origin_prod%3A" 
+                target="_blank" rel="noopener noreferrer" 
+                className="flex items-center justify-between p-6 bg-black/40 border border-zinc-800 rounded-2xl hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group">
+                <div className="flex flex-col">
+                  <span className="text-zinc-100 font-bold text-lg group-hover:text-white">Controlador SP002E</span>
+                  <span className="text-zinc-500 text-xs mt-1">Plug-and-play USB (Sem código)</span>
+                </div>
+                <ExternalLink className="w-5 h-5 text-zinc-600 group-hover:text-cyan-400" />
+              </a>
+
+              <a href="https://pt.aliexpress.com/item/32310683276.html?src=google&src=google&albch=apprmkt&albagn=182499396&albcp=20758697517&albag=&albad=&aff_short_key=_oFgTQeV&isdl=y&aff_platform=true&traffic_server_nav=true&gad_source=1&gad_campaignid=20758707111&gbraid=0AAAAADC-j-VafCvJlRKNGMUE4P0rndnmV&gclid=CjwKCAjwtcHPBhADEiwAWo3sJiwmTCJlCewdMnMAdIG3uHbbsSAfgkM66slYSqqnbMnfgulVmTK-9xoCs5gQAvD_BwE" 
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-between p-6 bg-black/40 border border-zinc-800 rounded-2xl hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all group">
+                <div className="flex flex-col">
+                  <span className="text-zinc-100 font-bold text-lg group-hover:text-white">Módulo LED 8 Bits</span>
+                  <span className="text-zinc-500 text-xs mt-1">WS2812 5050 RGB (Exige solda)</span>
+                </div>
+                <ExternalLink className="w-5 h-5 text-zinc-600 group-hover:text-cyan-400" />
+              </a>
+
+            </div>
+
+          </div>
         </main>
+
       </div>
 
       {/* ── LAYOUT EXCLUSIVO DE IMPRESSÃO (1 página A4) ── */}
@@ -228,9 +289,10 @@ export default function SimuladorPage() {
             <p>Oficina Maker — IPE lab</p>
           </div>
           <div className="meta">
-            <div>Gerado em: {now.toLocaleDateString('pt-BR')}</div>
-            <div>às {now.toLocaleTimeString('pt-BR')}</div>
+            <div>Gerado em: {mounted ? now.toLocaleDateString('pt-BR') : '--/--/----'}</div>
+            <div>às {mounted ? now.toLocaleTimeString('pt-BR') : '--:--:--'}</div>
           </div>
+
         </div>
 
         <div className="receipt-grid">
@@ -291,20 +353,23 @@ export default function SimuladorPage() {
               <div className="receipt-row"><span className="label">Mão de Obra</span><span className="value">R$ {laborCost.toFixed(2)}</span></div>
               <div className="receipt-row"><span className="label">Máquinas</span><span className="value">R$ {(machineCost + gravacaoCost).toFixed(2)}</span></div>
               <div className="receipt-row" style={{ marginTop: '6pt', paddingTop: '6pt', borderTop: '1pt solid #F58220' }}>
-                <span className="label" style={{ fontWeight: 900, fontSize: '11pt' }}>CUSTO TOTAL</span>
-                <span style={{ fontWeight: 900, fontSize: '14pt', color: '#F58220', fontFamily: 'monospace' }}>R$ {totalCost.toFixed(2)}</span>
+                <span className="label" style={{ fontWeight: 900, fontSize: '11pt' }}>PREÇO DE VENDA</span>
+                <span style={{ fontWeight: 900, fontSize: '14pt', color: '#F58220', fontFamily: 'monospace' }}>R$ {finalPrice.toFixed(2)}</span>
               </div>
               <div className="receipt-row" style={{ marginTop: '4pt' }}>
-                <span className="label" style={{ color: '#aaa', fontSize: '8pt' }}>Sugestão com 30% de lucro</span>
-                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#888' }}>R$ {(totalCost * 1.3).toFixed(2)}</span>
+                <span className="label" style={{ color: '#aaa', fontSize: '8pt' }}>Margem de lucro ({profitMargin}%)</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#888' }}>Custo: R$ {totalCost.toFixed(2)}</span>
               </div>
+
             </div>
           </div>
         </div>
 
         <div className="receipt-footer">
-          IPE lab — Oficina Maker | Este documento foi gerado automaticamente pelo Simulador de Custos.
+          IPE lab — Oficina Maker | Este documento foi gerado automaticamente pelo Simulador de Custos. 
+          <br/><strong>Este sistema foi desenvolvido para fins unicamente educacionais.</strong>
         </div>
+
       </div>
     </div>
   );
