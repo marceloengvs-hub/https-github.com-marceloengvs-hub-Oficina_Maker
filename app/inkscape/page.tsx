@@ -17,7 +17,22 @@ export default function InkscapePage() {
         <div className="space-y-8 text-zinc-300 text-lg leading-relaxed">
           <section className="bg-zinc-950 p-8 rounded-3xl border border-zinc-900">
             <h2 className="text-2xl font-bold text-zinc-50 mb-4">O que faremos nesta etapa?</h2>
-            <p>O <strong>Inkscape</strong> é um software livre de edição de gráficos vetoriais. Aqui, vamos preparar a arte que será gravada e cortada no acrílico da nossa luminária.</p>
+            <p className="mb-6">O <strong>Inkscape</strong> é um software livre de edição de gráficos vetoriais. Aqui, vamos preparar a arte que será gravada e cortada no acrílico da nossa luminária.</p>
+            
+            <div className="p-5 bg-zinc-900/50 rounded-2xl border border-zinc-800 flex items-start gap-3">
+              <div className="mt-1">
+                <PenTool className="w-5 h-5 text-[#FFFF00]" />
+              </div>
+              <div>
+                <h3 className="font-bold text-zinc-50 mb-1">Sugestão de imagens</h3>
+                <p className="text-zinc-400 text-base">
+                  Ainda não sabe o que desenhar? Confira esta referência para se inspirar na criação da sua luminária: 
+                  <a href="https://br.pinterest.com/pin/940407965954598630/" target="_blank" rel="noopener noreferrer" className="text-[#FFFF00] hover:underline ml-2 font-medium">
+                    Ver ideia no Pinterest &rarr;
+                  </a>
+                </p>
+              </div>
+            </div>
           </section>
           <section className="bg-zinc-950 p-8 rounded-3xl border border-zinc-900">
             <h2 className="text-2xl font-bold text-zinc-50 mb-4">Passo a Passo</h2>
