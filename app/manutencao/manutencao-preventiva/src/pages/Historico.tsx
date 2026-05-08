@@ -60,7 +60,7 @@ export default function Historico() {
         m.titulo.toLowerCase().includes(search.toLowerCase()) ||
         tecnicoNome.toLowerCase().includes(search.toLowerCase())
 
-      const matchStatus = !filterStatus || m.status === filterStatus
+      const matchStatus = filterStatus ? m.status === filterStatus : m.status !== 'cancelada'
       const matchTipo = !filterTipo || m.tipo === filterTipo
       const matchCategoria = !filterCategoria || (m.equipamentos?.categoria_id === filterCategoria)
       
