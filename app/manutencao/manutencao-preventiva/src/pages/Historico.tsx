@@ -64,8 +64,10 @@ export default function Historico() {
       const matchTipo = !filterTipo || m.tipo === filterTipo
       const matchCategoria = !filterCategoria || (m.equipamentos?.categoria_id === filterCategoria)
       
-      const obsStr = m.observacoes?.trim().toLowerCase() || ''
-      const matchDefeito = !filterComDefeito || (obsStr.length > 0 && obsStr !== 'ok')
+      const obsRaw = (m.observacoes ?? '').trim()
+      const obsNorm = obsRaw.toLowerCase().replace(/[.,!?\-–—:;]+$/g, '').trim()
+      const okVariants = ['', 'ok', 'tudo ok', 'tudo certo', 'sem observação', 'sem observações', 'sem obs', 'nenhuma', 'n/a', '-', '--', '---']
+      const matchDefeito = !filterComDefeito || (obsRaw.length > 0 && !okVariants.includes(obsNorm) && m.status !== 'cancelada')
 
       let matchDate = true
       if (filterDateStart || filterDateEnd) {
