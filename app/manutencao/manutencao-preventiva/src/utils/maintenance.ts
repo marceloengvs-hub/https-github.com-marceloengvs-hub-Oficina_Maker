@@ -267,11 +267,12 @@ export function calculateSchedule(
     }
   }
 
-  // ─── Deduplicação ─────────────────────────────────────────────────────────
+  // ─── Deduplicação (Vercel Trigger) ──────────────────────────────────────────
   // Se o mesmo equipamento aparece em múltiplos protocolos na mesma data,
   // mantém apenas o item mais específico (equipment-specific > categoria > global).
   // Isso evita que protocolos duplicados (ex: nomes ligeiramente diferentes
   // aplicados à mesma categoria) gerem múltiplas linhas para o mesmo ativo.
+  // Atualizado em: 02/06/2026.
   const deduped = new Map<string, ScheduleItem>()
   for (const item of items) {
     const key = `${item.equipamentoId}::${item.nextDate.getTime()}`
