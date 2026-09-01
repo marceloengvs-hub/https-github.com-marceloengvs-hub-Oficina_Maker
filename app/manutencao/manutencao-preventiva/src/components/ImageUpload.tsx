@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
-import { Upload, X, Image as ImageIcon, Camera } from 'lucide-react'
+import { Upload, X, Image as ImageIcon, Camera, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { compressImages } from '../utils/imageCompressor'
 
 interface ImageUploadProps {
   onUpload: (files: File[]) => void
@@ -12,12 +13,13 @@ interface ImageUploadProps {
 
 export default function ImageUpload({ onUpload, multiple = false, previews = [], onRemovePreview, uploading }: ImageUploadProps) {
   const [dragging, setDragging] = useState(false)
+  const [compressing, setCompressing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
-  const handleFiles = useCallback((files: FileList | null) => {
-    if (!files) return
-    const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+  const handleFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const MAX_SIZE = 25 * 1024 * 1024 // Permite até 25MB bruto, pois vamos comprimir
     const filesArray = Array.from(files)
     
     const valid = filesArray.filter(f => f.type.startsWith('image/') && f.size <= MAX_SIZE)
@@ -25,16 +27,32 @@ export default function ImageUpload({ onUpload, multiple = false, previews = [],
     const invalidSize = filesArray.filter(f => f.type.startsWith('image/') && f.size > MAX_SIZE)
 
     if (invalidType.length > 0) toast.error('Apenas arquivos de imagem são permitidos.')
-    if (invalidSize.length > 0) toast.error('Uma ou mais fotos excedem o limite de 10MB.')
+    if (invalidSize.length > 0) toast.error('Uma ou mais fotos excedem o limite de 25MB.')
 
-    if (valid.length > 0) onUpload(valid)
+    if (valid.length > 0) {
+      try {
+        setCompressing(true)
+        // Comprime as imagens automaticamente no navegador
+        const compressed = await compressImages(valid, {
+          maxWidth: 1600,
+          maxHeight: 1600,
+          quality: 0.82
+        })
+        onUpload(compressed)
+      } catch (err) {
+        console.error('Erro na compressão:', err)
+        onUpload(valid) // Fallback caso ocorra algum erro raro
+      } finally {
+        setCompressing(false)
+      }
+    }
   }, [onUpload])
 
   return (
     <div>
       <div
         className={`upload-zone ${dragging ? 'dragging' : ''}`}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !compressing && !uploading && inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
@@ -45,7 +63,10 @@ export default function ImageUpload({ onUpload, multiple = false, previews = [],
           accept="image/*"
           multiple={multiple}
           className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => {
+            handleFiles(e.target.files)
+            e.target.value = '' // Reseta para permitir selecionar o mesmo arquivo se quiser
+          }}
         />
         <input
           ref={cameraRef}
@@ -53,12 +74,22 @@ export default function ImageUpload({ onUpload, multiple = false, previews = [],
           accept="image/*"
           capture="environment"
           className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => {
+            handleFiles(e.target.files)
+            e.target.value = ''
+          }}
         />
-        {uploading ? (
+        {compressing ? (
           <div className="flex flex-col items-center gap-2">
             <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
-            <span className="text-sm">Enviando...</span>
+            <span className="text-sm font-medium flex items-center gap-1.5" style={{ color: 'var(--color-accent)' }}>
+              <Sparkles size={14} /> Otimizando foto...
+            </span>
+          </div>
+        ) : uploading ? (
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }} />
+            <span className="text-sm">Enviando para o servidor...</span>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
@@ -80,7 +111,9 @@ export default function ImageUpload({ onUpload, multiple = false, previews = [],
                 <ImageIcon size={16} /> Galeria
               </button>
             </div>
-            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Arraste imagens ou clique nas opções. Máx 5MB.</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              Arraste imagens ou clique. Compressão automática ativa (economia de espaço).
+            </span>
           </div>
         )}
       </div>
